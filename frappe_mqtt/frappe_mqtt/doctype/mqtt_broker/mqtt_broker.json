@@ -1,0 +1,131 @@
+{
+ "actions": [],
+ "autoname": "field:broker_name",
+ "creation": "2025-09-06 00:47:44.873592",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "active",
+  "broker_name",
+  "host",
+  "port",
+  "username",
+  "password",
+  "keepalive",
+  "column_break_vijc",
+  "ca_certs",
+  "certfile",
+  "keyfile",
+  "tls_insecure",
+  "clean_session",
+  "error_topic"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active"
+  },
+  {
+   "fieldname": "host",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Host",
+   "reqd": 1
+  },
+  {
+   "default": "1883",
+   "fieldname": "port",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Port",
+   "reqd": 1
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "Username"
+  },
+  {
+   "fieldname": "password",
+   "fieldtype": "Password",
+   "label": "Password"
+  },
+  {
+   "fieldname": "ca_certs",
+   "fieldtype": "Attach",
+   "label": "CA Certificate"
+  },
+  {
+   "fieldname": "certfile",
+   "fieldtype": "Attach",
+   "label": "Client Certificate"
+  },
+  {
+   "fieldname": "keyfile",
+   "fieldtype": "Attach",
+   "label": "Client Key"
+  },
+  {
+   "default": "0",
+   "fieldname": "tls_insecure",
+   "fieldtype": "Check",
+   "label": "TLS Insecure"
+  },
+  {
+   "default": "60",
+   "fieldname": "keepalive",
+   "fieldtype": "Int",
+   "label": "Keepalive (s)"
+  },
+  {
+   "default": "1",
+   "fieldname": "clean_session",
+   "fieldtype": "Check",
+   "label": "Clean Session (legacy)"
+  },
+  {
+   "description": "Optional topic to publish validation errors",
+   "fieldname": "error_topic",
+   "fieldtype": "Data",
+   "label": "Error Topic"
+  },
+  {
+   "fieldname": "column_break_vijc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "broker_name",
+   "fieldtype": "Data",
+   "label": "Broker Name",
+   "unique": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2025-09-07 16:57:19.243118",
+ "modified_by": "Administrator",
+ "module": "Frappe MQTT",
+ "name": "MQTT Broker",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

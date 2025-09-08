@@ -1,0 +1,110 @@
+{
+ "actions": [],
+ "autoname": "field:topic",
+ "creation": "2025-09-06 00:44:12.093519",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "topic",
+  "enabled",
+  "description",
+  "column_break_amwr",
+  "qos",
+  "webhook_url",
+  "section_break_arpe",
+  "allowed_roles",
+  "json_schema"
+ ],
+ "fields": [
+  {
+   "fieldname": "topic",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Topic",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "qos",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "QoS",
+   "options": "0\n1\n2"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "json_schema",
+   "fieldtype": "Long Text",
+   "label": "JSON Schema (optional)"
+  },
+  {
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL (optional)"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "allowed_roles",
+   "fieldtype": "Table",
+   "label": "Allowed Roles",
+   "options": "MQTT Topic Allowed Role"
+  },
+  {
+   "fieldname": "column_break_amwr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_arpe",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2025-09-06 00:52:53.618329",
+ "modified_by": "Administrator",
+ "module": "Frappe MQTT",
+ "name": "MQTT Topic",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "MQTT",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
