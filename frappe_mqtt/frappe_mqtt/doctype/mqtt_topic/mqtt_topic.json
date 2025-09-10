@@ -6,10 +6,11 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "topic",
   "enabled",
+  "topic",
   "description",
   "column_break_amwr",
+  "broker",
   "qos",
   "webhook_url",
   "section_break_arpe",
@@ -45,6 +46,7 @@
    "label": "JSON Schema (optional)"
   },
   {
+   "description": "Push Message to webhook",
    "fieldname": "webhook_url",
    "fieldtype": "Data",
    "label": "Webhook URL (optional)"
@@ -67,11 +69,20 @@
   {
    "fieldname": "section_break_arpe",
    "fieldtype": "Section Break"
+  },
+  {
+   "description": "Subscription on Broker if selected else subscribed to all.",
+   "fieldname": "broker",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Broker",
+   "options": "MQTT Broker"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2025-09-06 00:52:53.618329",
+ "modified": "2025-09-10 18:32:38.870184",
  "modified_by": "Administrator",
  "module": "Frappe MQTT",
  "name": "MQTT Topic",

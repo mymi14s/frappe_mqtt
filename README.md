@@ -15,11 +15,12 @@
    - [Config via `site_config.json` (single or multiple brokers)](#config-via-site_configjson-single-or-multiple-brokers)  
    - [MQTT Broker DocType](#mqtt-broker-doctype)  
    - [MQTT Topic DocType (Auto‑Subscribe)](#mqtt-topic-doctype-auto-subscribe)  
+   - [Broker Topic DocType (Webhook Forwarding)](#broker-topic-doctype-webhook-forwarding)   
 6. [Usage (Python API)](#usage-python-api)  
    - [Getting a client](#getting-a-client)  
    - [Publishing (single broker or broadcast)](#publishing-single-broker-or-broadcast)  
    - [Subscribing](#subscribing)  
-   - [Overriding `on_message`](#overriding-on_message)  
+   - [Overriding `on_message` with `frappe_db`](#overriding-on_message-with-frappe_db)   
    - [Hot reload behavior](#hot-reload-behavior)  
 7. [Usage (Server API — `api.py`)](#usage-server-api--apipy)  
    - [`frappe_mqtt.api.clients`](#frappe_mqttapiclients)  
@@ -34,7 +35,8 @@
 10. [Security & Warnings](#security--warnings)  
 11. [Troubleshooting](#troubleshooting)  
 12. [FAQ](#faq)  
-13. [License](#license)
+13. [Development & Testing](#development--testing)   
+14. [License](#license)
 
 ---
 
@@ -46,27 +48,34 @@
 - **ERP events → field devices**: publish status updates/orders to devices.
 - **System telemetry**: consume `$SYS/#` and broker metrics for monitoring.
 - **Cross‑system glue**: bridge legacy systems by publishing/consuming JSON messages.
+- **Webhook forwarding**: push MQTT payloads to external HTTP endpoints automatically. 
+- **Database logging**: safely create/update Frappe documents from MQTT callbacks using `frappe_db`. 
 
-It supports **multiple brokers**, **auto‑subscription** from DocTypes, **JSON‑only payloads**, and **hot reload** when credentials change.
+It supports **multiple brokers**, **auto‑subscription** from DocTypes, **JSON‑only payloads**, **webhooks**, **thread-safe DB access**, and **hot reload** when credentials change.
 
 ---
 
-## Key Features
+## Key Features  (Enhanced)
 
 - **Multi‑broker** support via `site_config.json` and/or **MQTT Broker** DocType.
 - **Auto‑subscription** from **MQTT Topic** DocType on (re)start/reload.
+- **Webhook forwarding** via **Broker Topic** DocType — forward messages to HTTP endpoints. 
 - **Publish** JSON payloads; payloads are auto‑extended with `timestamp`.
 - **Hot reload** when `site_config.json` or Broker DocType changes.
 - **Flush retained** messages (single topic, wildcard branch, or all).
 - **Role‑based**: use Frappe permissions to secure access to server methods if required (MQTT role).
+- **Scheduler-Based Client Lifecycle** — clients auto-initialize on bench migrate or DocType update. 
+- **Thread-Safe Database Access** — each client exposes `c.client.frappe_db` for safe `get_doc`, `new_doc`, `get_list`, `get_all` in MQTT threads. 
+- **Retained Message History API** — fetch latest retained state for monitoring or sync. 
 
 ---
 
 ## Requirements
 
 - Frappe **>=v15** (Python 3.10+ recommended)  
-- Paho‑MQTT **2.1.0**
+- Paho‑MQTT **2.1.0** (MQTT v5 protocol) 
 - Optional TLS certificates for secure brokers
+- Broker (MQTTV5 protocol) *
 
 ---
 
@@ -81,7 +90,7 @@ bench --site yoursite clear-cache
 bench restart
 ```
 
-Assign MQTT roles/permissions to users who will call server APIs or configure DocTypes.
+Assign **MQTT role** to users who will call server APIs or configure DocTypes.
 
 ---
 
@@ -96,32 +105,55 @@ Edit your site’s `site_config.json` and add an `mqtt_config` section.
 **Single broker example**:
 ```json
 {
-  "mqtt_config": {
-    "default": {
-      "host": "localhost", # if test or actual broker host e.g broker.hivemq.com
-      "port": 1883,
-      "username": "optional_user",
-      "password": "optional_pass"
-    }
-  }
+  "mqtt_config": [
+      {
+          "name": "default",
+          "host": "localhost",
+          "port": 1883,
+          "username": "",
+          "password": "",
+          "ca_certs": "",
+          "certfile": "",
+          "keyfile": "",
+          "tls_insecure": 0,
+          "keepalive": 60,
+          "error_topic": "errors/frappe"
+      }
+  ]
 }
 ```
 
 **Multiple brokers + TLS example**:
 ```json
 {
-  "mqtt_config": {
-    "default": { "host": "localhost", "port": 1883 },
-    "secure": {
-      "host": "mqtt.example.com",
-      "port": 8883,
-      "username": "svc_user",
-      "password": "********",
-      "cafile": "/path/to/ca.crt",
-      "certfile": "/path/to/client.crt",
-      "keyfile": "/path/to/client.key"
+  "mqtt_config": [
+    {
+        "name": "default",
+        "host": "localhost",
+        "port": 1883,
+        "username": "",
+        "password": "",
+        "ca_certs": "",
+        "certfile": "",
+        "keyfile": "",
+        "tls_insecure": 0,
+        "keepalive": 60,
+        "error_topic": "errors/frappe"
+    },
+    {
+        "name": "hivemq",
+        "host": "localhost",
+        "port": 1883,
+        "username": "",
+        "password": "",
+        "ca_certs": "",
+        "certfile": "",
+        "keyfile": "",
+        "tls_insecure": 0,
+        "keepalive": 60,
+        "error_topic": "errors/frappe"
     }
-  }
+  ]
 }
 ```
 
@@ -131,7 +163,8 @@ Edit your site’s `site_config.json` and add an `mqtt_config` section.
 > - The top‑level keys (`default`, `secure`, etc.) are **broker keys** used by the API.
 
 ### MQTT Broker DocType
-ROLE MQTT is required to use the doctypes
+
+ROLE MQTT is required to use the doctypes.
 
 Create **MQTT Broker** documents in Desk to define brokers at runtime:
 
@@ -141,7 +174,9 @@ Create **MQTT Broker** documents in Desk to define brokers at runtime:
 - **TLS**: CA / cert / key (optional)
 
 Brokers defined here are managed the same way as those from `site_config.json`. The app can use **both** sources simultaneously.
-NOTE: Currently, hot-reload works only when new broker or topic is created/updated, and about 5 t0 15 seconds when the server startups.
+
+> ⚠️ **Hot Reload Limitation**: Automatic reload currently triggers only when an **MQTT Broker** or **MQTT Topic** DocType is *created* or *updated*. Changes to `site_config.json` require a manual `bench restart`. Reloads may take 5–15 seconds to complete after server startup or DocType save. 
+
 To start the broker manually, Click 'Reload brokers' in MQTT Broker list.
 
 ![alt text](img/broker.png)
@@ -151,9 +186,28 @@ To start the broker manually, Click 'Reload brokers' in MQTT Broker list.
 Create **MQTT Topic** records to declare subscriptions the client should maintain:
 
 - **Topic Filter**: e.g., `sensors/#`, `devices/+/status`  
-- **Broker**: which broker key to use
+- **Broker**: which broker key to use (leave blank to subscribe on **all active brokers**) 
 
 On client start or reload, the app auto‑subscribes to all saved topics.
+
+### Broker Topic DocType (Webhook Forwarding) 
+
+This is an extension of **MQTT Topic** with webhook capabilities.
+
+- Inherits all fields from **MQTT Topic**
+- Adds `webhook_url` (string): HTTP endpoint to forward incoming messages to
+- When a message arrives on the subscribed topic, it is POSTed as JSON to the `webhook_url`
+
+> Example payload sent to webhook:
+> ```json
+> {
+>   "topic": "sensors/temperature",
+>   "payload": {"value": 25.3, "unit": "C"},
+>   "qos": 0,
+>   "retain": false,
+>   "timestamp": "2025-04-05T10:30:00.123456"
+> }
+> ```
 
 ---
 
@@ -164,7 +218,7 @@ Import helpers from `utility.py`.
 ### Getting a client
 
 ```python
-from frappe_mqtt.utility import get_client
+from frappe_mqtt.mqtt_utility import get_client
 
 # by broker key (from site_config.json or Broker DocType)
 client = get_client("default")  # or "secure", "production", etc.
@@ -197,36 +251,56 @@ client.publish("system/restart", {"notice": "rolling"}, broadcast=True)
 client.subscribe("sensors/+/status", qos=0)
 ```
 
-### Overriding `on_message`
+### Overriding `on_message` with `frappe_db` 
 
-You can attach your own on‑message handler for advanced processing:
+You can attach your own `on_message` handler for advanced processing — including **safe database access** via `client.frappe_db`.
 
 ```python
 # your_app/handler.py
 
+import json
+
 def on_message(self, client, userdata, message_dict, raw):
-    print(userdata, raw, message_dict)
-    print(raw.topic)
-    """
-    Your code here
-    NOTE: the data types are:
-    client: mqtt.Client, userdata: Any, message_dict: JsonDict, raw: mqtt.MQTTMessage
-    raw contains: topic, payload
-    """
+    # Access raw MQTT message
+    print("Topic:", raw.topic)
+    print("Payload:", message_dict)
+
+    # Thread-safe Frappe DB access
+    db = client.frappe_db  #  This is key!
+
+    # Example: Create a new document
+    log = db.new_doc({
+        "name": "vjhbgdfckn",
+        "doctype": "Temperature Log",
+        "timestamp": frappe.utils.now(),
+        "value": message_dict.get("value", 0)
+    })
+    log.insert()
+
+    # Example: Fetch existing doc
+    user = db.get_doc("User", "Administrator")
+    print("Admin:", user.full_name)
+
+    # Example: Query recent logs
+    recent = db.get_list("Temperature Log", fields=["timestamp", "value"], limit=5)
+    print("Recent:", recent)
 
 # your_app/__init__.py
-from frappe_mqtt.utility import MQTTClient
+from frappe_mqtt.mqtt_utility import MQTTClient
 from your_app.handler import on_message
 
 MQTTClient.on_message = on_message
 ```
 
-> The built‑in logic validates JSON
-> Attachments to `c.client` are standard **Paho‑MQTT** hooks.
+> The built‑in logic validates JSON.  
+> Attachments to `c.client` are standard **Paho‑MQTT** hooks.  
+> `frappe_db` supports: `get_doc`, `new_doc`, `get_list`, `get_all`, `set_value`, etc. 
 
 ### Hot reload behavior
 
-- Changing **MQTT Broker** DocType normally triggers a client reload for that broker.  
+- Changing **MQTT Broker** DocType normally triggers a client reload for that broker.
+- Scheduler watch if client not initialized, else initialize.
+- bench migrate, works same as scheduler.  
 - Updating **`site_config.json`** requires either calling your reload helper (if provided) or restarting the bench.  
 - Calling `get_client(key)` returns an existing connection or creates/reloads it if needed.
 
@@ -356,7 +430,13 @@ A local broker is ideal for development.
 **Ubuntu/Debian**:
 ```bash
 sudo apt update
-sudo apt install mosquitto mosquitto-clients
+sudo apt install mosquitto mosquitto-clients #insure installed or remote broker support MQTTv5
+```
+
+**Alternative: Snap (Ubuntu, Fedora, etc.)** 
+```bash
+sudo snap install mosquitto
+sudo snap start mosquitto
 ```
 
 **macOS (Homebrew)**:
@@ -366,7 +446,7 @@ brew services start mosquitto
 ```
 
 **Windows**:
-- Download from https://mosquitto.org/download/  
+- Download the latest installer from [Mosquitto Binary Downloads](https://mosquitto.org/files/binary/) 
 - Install and ensure `mosquitto.exe` is in PATH.
 
 Start the broker (default 1883):
@@ -395,12 +475,24 @@ mosquitto_pub -h localhost -t test/topic -m '{"hello":"world"}'
 Configure your site to use it:
 ```json
 {
-  "mqtt_config": {
-    "local": { "host": "localhost", "port": 1883 }
-  }
+  "mqtt_config": [
+    {
+        "name": "default",
+        "host": "localhost",
+        "port": 1883,
+        "username": "",
+        "password": "",
+        "ca_certs": "",
+        "certfile": "",
+        "keyfile": "",
+        "tls_insecure": 0,
+        "keepalive": 60,
+        "error_topic": "errors/frappe"
+    },
+  ]
 }
 ```
-Restart bench and use the APIs against `client_key="local"`.
+Restart bench and use the APIs against `client_key="default"`.
 
 ---
 
@@ -422,6 +514,7 @@ Restart bench and use the APIs against `client_key="local"`.
 - **No messages**: confirm the broker has retained messages (`mosquitto_sub -R`), and your filters match.
 - **Hot reload**: Broker DocType saves should reconnect; for `site_config.json` changes, restart bench && migrate.
 - **Unicode/JSON errors**: ensure publishers send valid UTF‑8 JSON strings.
+- **Database access in threads**: Always use `client.frappe_db`, never raw `frappe` calls in MQTT callbacks. 
 
 ---
 
@@ -436,8 +529,22 @@ Pass the broker key to `get_client("mykey")` or set `client_key` in the API call
 **How do I wipe all retained messages?**  
 Call `frappe_mqtt.api.flush_retained` with `clear_all=1` for the chosen broker.
 
+**How do I trigger a webhook?**  
+Create a **Broker Topic** DocType with a `webhook_url` and matching topic. Incoming messages are auto-forwarded. 
+
+**Can I access the database from an MQTT message handler?**  
+ Yes — use `client.frappe_db.get_doc(...)`, `client.frappe_db.new_doc(...)`, etc. Do NOT use `frappe.get_doc(...)` directly — it’s unsafe in threads.
+
+---
+
+## Message Flow Diagram 
+
+![alt text](img/flow.svg)
+
 ---
 
 ## License
 
 MIT © 2025
+
+---

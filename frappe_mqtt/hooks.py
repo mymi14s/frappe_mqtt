@@ -22,7 +22,13 @@ add_to_apps_screen = [
 ]
 
 
-
+scheduler_events = {
+	"cron": {
+		"* * * * *": [
+			"frappe_mqtt.boot.start_mqtt",
+		],
+	},
+}
 
 
 fixtures = [
@@ -32,3 +38,5 @@ fixtures = [
     }
 ]
 
+
+after_migrate = "frappe_mqtt.boot.start_mqtt"

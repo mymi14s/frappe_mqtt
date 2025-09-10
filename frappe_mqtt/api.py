@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import json
+import json, requests
 from typing import Optional
 
 import frappe
 from frappe import _
+from frappe import request
+from frappe.utils.response import Response
 
-from .utility import get_broker_history as _hist
-from .utility import get_client, get_clients
+from .mqtt_utility import get_broker_history as _hist
+from .mqtt_utility import get_client, get_clients, reload_all_clients, _multi
 
 
 def _require_mqtt_role() -> None:
@@ -61,3 +63,9 @@ def flush_retained(client_key: str | None = None, topic: str | None = None, clea
     client = get_client(ckey)
     return client.flush_retained(topic=topic, clear_all=bool(int(clear_all)), timeout=timeout, qos=qos)
 
+
+
+@frappe.whitelist(allow_guest=True)
+def start_mqtt():
+    if not _multi.running:
+        reload_all_clients()
