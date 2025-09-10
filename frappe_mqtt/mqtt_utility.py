@@ -9,6 +9,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Set
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import CallbackAPIVersion
 
+from .db import DBFrappe, frappe_db
+from .utils import push_webhook
+
 JsonDict = Dict[str, Any]
 MessageHandler = Callable[[mqtt.Client, Any, JsonDict, mqtt.MQTTMessage], None]
 
@@ -44,6 +47,8 @@ class MQTTConfig:
 class MQTTClient:
     """Wrap a Paho v5 client with validation, hot-reload, and helpers."""
 
+    DBFrappe = None
+
     def __init__(self, config: MQTTConfig, *, client_id: Optional[str] = None, connect_immediately: bool = True) -> None:
         """Initialize the client and optionally connect."""
         self.config = config
@@ -60,13 +65,49 @@ class MQTTClient:
             self.connect()
 
     def _build_paho_client(self) -> mqtt.Client:
-        """Return a configured Paho v5 client."""
-        c = mqtt.Client(
-            client_id=self._client_id,
-            protocol=mqtt.MQTTv5,
-            transport="tcp",
-            callback_api_version=CallbackAPIVersion.VERSION2,
-        )
+        """Return a configured Paho v5/v3 client."""
+        c = None
+
+        try:
+            c = mqtt.Client(
+                client_id=self._client_id,
+                protocol=mqtt.MQTTv5,
+                transport="tcp",
+                callback_api_version=CallbackAPIVersion.VERSION2,
+            )
+            print("Created MQTT client with MQTTv5")
+
+        except Exception as e1:
+            print(f"Failed with MQTTv5: {e1}")
+
+            try:
+                c = mqtt.Client(
+                    client_id=self._client_id,
+                    protocol=mqtt.MQTTv311,
+                    transport="tcp",
+                    callback_api_version=CallbackAPIVersion.VERSION2,
+                )
+                print("Created MQTT client with MQTTv311")
+
+            except Exception as e2:
+                print(f"Failed with MQTTv311: {e2}")
+
+                try:
+                    c = mqtt.Client(
+                        client_id=self._client_id,
+                        protocol=mqtt.MQTTv31,
+                        transport="tcp",
+                        callback_api_version=CallbackAPIVersion.VERSION2,
+                    )
+                    print("Created MQTT client with MQTTv31")
+
+                except Exception as e3:
+                    print(f"Failed with MQTTv31: {e3}")
+                    c = None
+
+        if not c:
+            raise Exception("Client not initialized.")
+
         if self.config.username and self.config.password:
             c.username_pw_set(self.config.username, self.config.password)
         if self.config.ca_certs or self.config.certfile or self.config.keyfile:
@@ -196,6 +237,12 @@ class MQTTClient:
     def on_message(self, client: mqtt.Client, userdata: Any, message_dict: JsonDict, raw: mqtt.MQTTMessage) -> None:
         """Handle validated incoming message (override if needed)."""
         pass
+        
+        
+    def process_web_hook(self, topic, payload):
+        """Handle data posting to webhook."""
+        if topic in self.webhooks:
+            push_webhook(self.webhooks[topic], payload.update({"_topic_":topic}))
 
     def add_on_message_handler(self, handler: MessageHandler) -> None:
         """Register an additional message handler."""
@@ -210,7 +257,7 @@ class MQTTClient:
         except Exception as exc:
             repr(exc)
 
-    def _on_disconnect_wrapper(self, client, userdata, reason_code, properties) -> None:
+    def _on_disconnect_wrapper(self, client, userdata, reason_code, properties, others=None) -> None:
         """Wrap Paho on_disconnect to call the user handler safely."""
         try:
             self.on_disconnect(client, userdata, reason_code, properties)
@@ -241,6 +288,7 @@ class MQTTClient:
             return
 
         try:
+            self.process_web_hook(msg.topic, parsed)
             self.on_message(client, userdata, parsed, msg)
         except Exception as exc:
             frappe.log_error(f"MQTT on_message error: {exc}", "Frappe MQTT")
@@ -297,6 +345,9 @@ class MQTTClient:
 
 class MultiMQTTClientManager:
     """Manage clients from site_config and active Broker doctypes."""
+    site_name = ""
+    frappe_db = None
+    running = False
 
     def __init__(self) -> None:
         """Create the manager."""
@@ -310,36 +361,31 @@ class MultiMQTTClientManager:
         """Return ('site_config', config, fingerprint) if valid, else None."""
         try:
             sc = frappe.get_site_config() or {}
+            self.site_name = frappe.local.site
         except Exception:
             sc = {}
-        cfg = sc.get("mqtt_config") or None
-        if not cfg:
-            return None
-        host = cfg.get("host")
-        port = cfg.get("port")
-        if not host or port is None:
-            return None
-        conf = MQTTConfig(
-            host=str(host),
-            port=int(port),
-            username=cfg.get("username") or None,
-            password=cfg.get("password") or None,
-            ca_certs=cfg.get("ca_certs") or None,
-            certfile=cfg.get("certfile") or None,
-            keyfile=cfg.get("keyfile") or None,
-            tls_insecure=bool(cfg.get("tls_insecure", 0)),
-            keepalive=int(cfg.get("keepalive") or 60),
-            clean_session=True,
-            error_topic=cfg.get("error_topic") or None,
-        )
-        fp = hashlib.sha256(
-            json.dumps(asdict(conf), sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        return ("site_config", conf, fp)
+
+        db_host = sc.get("db_host") or "localhost"
+        db_type = sc.get("db_type")
+        db_name = sc.get("db_name")
+        db_user = db_name
+        db_password = sc.get("db_password")
+
+        if all([db_host, db_type, db_name, db_password]):
+            self.frappe_db = frappe_db(DBFrappe(db_type=db_type, host=db_host, user = db_user, password = db_password))
+
+        cfgs = sc.get("mqtt_config") or []
+        rows = []
+        for cfg in cfgs:
+            if cfg.get("host") and cfg.get("port"):
+                cfg["isfile"] = 1
+                rows.append(cfg)
+        return rows
 
     def _load_active_brokers(self) -> List[Tuple[str, MQTTConfig]]:
         """Return active brokers as (key, config) pairs."""
-        rows = frappe.get_all(
+        rows = self._current_site_tuple()
+        rows += frappe.get_all(
             "MQTT Broker",
             filters={"active": 1},
             fields=[
@@ -354,8 +400,11 @@ class MultiMQTTClientManager:
                 continue
             pwd = None
             try:
-                doc = frappe.get_doc("MQTT Broker", r["name"])
-                pwd = doc.get_password("password") if doc.get("password") else None
+                if not r.get("isfile"):
+                    doc = frappe.get_doc("MQTT Broker", r["name"])
+                    pwd = doc.get_password("password") if doc.get("password") else None
+                else:
+                    pwd = r.get("password") or None
             except Exception:
                 pwd = None
             mc = MQTTConfig(
@@ -372,6 +421,7 @@ class MultiMQTTClientManager:
                 error_topic=r.get("error_topic") or None,
             )
             out.append((r["name"], mc))
+        
         return out
 
     def ensure_clients(self) -> Dict[str, MQTTClient]:
@@ -389,9 +439,13 @@ class MultiMQTTClientManager:
                 fp = cfg.fingerprint()
                 if key not in self._clients:
                     self._clients[key] = MQTTClient(cfg)
+                    self._clients[key].frappe_db = self.frappe_db
+                    self._clients[key].site_name = self.site_name
                     self._fingerprints[key] = fp
                 elif self._fingerprints.get(key) != fp:
                     self._clients[key].reload(cfg)
+                    self._clients[key].frappe_db = self.frappe_db
+                    self._clients[key].site_name = self.site_name
                     self._fingerprints[key] = fp
 
             for key in list(self._clients.keys()):
@@ -404,6 +458,7 @@ class MultiMQTTClientManager:
                     self._fingerprints.pop(key, None)
 
             self.update_subscriptions_all()
+            self.running = True
             return dict(self._clients)
         
 
@@ -417,15 +472,26 @@ class MultiMQTTClientManager:
 
     def update_subscriptions_all(self) -> None:
         """Subscribe all clients to enabled topics."""
-        rows = frappe.get_all("MQTT Topic", filters={"enabled": 1}, fields=["topic", "qos"], order_by="topic asc")
+        webhooks = {}
+        rows = frappe.get_all("MQTT Topic", filters={"enabled": 1}, fields=["topic", "qos", "broker", "webhook_url"], order_by="topic asc")
         if not rows:
             return
         for key, client in self._clients.items():
             for r in rows:
                 try:
-                    client.subscribe(r["topic"], qos=int(r.get("qos") or 0))
+                    if r["broker"]:
+                        if r["broker"] == key:
+                            client.subscribe(r["topic"], qos=int(r.get("qos") or 0))
+                    else:
+                        client.subscribe(r["topic"], qos=int(r.get("qos") or 0))
+                    if r["webhook_url"]:
+                        webhooks[r["topic"]] = r["webhook_url"]
                 except Exception as exc:
                     frappe.throw(f"MQTT: subscribe failed: {exc}")
+
+        self.webhooks = webhooks
+        for key, client in self._clients.items():
+            client.webhooks = webhooks
 
     def get_clients(self) -> Dict[str, MQTTClient]:
         """Return the managed clients, creating them if needed."""

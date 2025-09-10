@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Tuple
 from unittest.mock import patch
 
 import frappe
-import paho.mqtt.client as mqtt
+import paho.mqtt.client as mqtt_utility
 
-from frappe_mqtt import utility
+from frappe_mqtt import mqtt_utility
 
 
 class FakePahoClient:
@@ -30,7 +30,7 @@ class FakePahoClient:
         self.connected = True
         self.connected_args = (host, port, keepalive)
         if self.on_connect:
-            self.on_connect(self, None, {}, mqtt.ReasonCodes(mqtt.ReasonCodes.CONNACK | 0), None)
+            self.on_connect(self, None, {}, mqtt_utility.ReasonCodes(mqtt_utility.ReasonCodes.CONNACK | 0), None)
 
     def loop_start(self):
         self.looping = True
@@ -41,7 +41,7 @@ class FakePahoClient:
     def disconnect(self):
         self.connected = False
         if self.on_disconnect:
-            self.on_disconnect(self, None, mqtt.ReasonCodes(mqtt.ReasonCodes.DISCONNECT | 0), None)
+            self.on_disconnect(self, None, mqtt_utility.ReasonCodes(mqtt_utility.ReasonCodes.DISCONNECT | 0), None)
 
     def subscribe(self, topic, qos=0):
         self.subscriptions.append((topic, qos))
@@ -116,7 +116,7 @@ def _mk_broker(name="BRK-1", host="broker.local", port=1883, active=1, error_top
 
 
 def _reset_manager():
-    m = utility._multi
+    m = mqtt_utility._multi
     for c in list(m._clients.values()):
         try:
             c.disconnect()
@@ -133,8 +133,8 @@ def test_clients_created_from_site_config_and_broker():
     _mk_topic("test/a")
     with _patch_site_config():
         _mk_broker(name="BRK-1", host="broker.local", port=1883, active=1)
-        utility.ensure_clients_ready()
-        clients = utility.get_clients()
+        mqtt_utility.ensure_clients_ready()
+        clients = mqtt_utility.get_clients()
         assert "site_config" in clients
         assert "BRK-1" in clients
         for key, c in clients.items():
@@ -148,8 +148,8 @@ def test_publish_enrichment_and_broadcast():
     _mk_topic("x/y")
     with _patch_site_config():
         _mk_broker(name="BRK-2", host="b2.local", port=1883, active=1)
-        utility.ensure_clients_ready()
-        clients = utility.get_clients()
+        mqtt_utility.ensure_clients_ready()
+        clients = mqtt_utility.get_clients()
         from frappe_mqtt.api import publish
         with patch("frappe_mqtt.api._require_mqtt_role", return_value=None):
             res = publish(topic="x/y", payload_json='{"k":1}', qos=0, retain=0, client_key=None, broadcast=1)
@@ -169,8 +169,8 @@ def test_on_message_json_and_nonjson_error_topic():
     _reset_manager()
     _mk_topic("demo/t")
     with _patch_site_config(error_topic="errors/out"):
-        utility.ensure_clients_ready()
-        c = utility.get_client("site_config")
+        mqtt_utility.ensure_clients_ready()
+        c = mqtt_utility.get_client("site_config")
         fake: FakePahoClient = c._client
         fake._owner = c
 
@@ -198,15 +198,15 @@ def test_snapshot_retained_collects_matches():
     _reset_manager()
     _mk_topic("sensors/#")
     with _patch_site_config():
-        utility.ensure_clients_ready()
-        c = utility.get_client("site_config")
+        mqtt_utility.ensure_clients_ready()
+        c = mqtt_utility.get_client("site_config")
         fake: FakePahoClient = c._client
         fake._owner = c
         fake.retained = {
             "sensors/room1/temp": {"t": 21},
             "other/topic": {"x": 1},
         }
-        out = utility.get_broker_history("sensors/#", limit=10, timeout_sec=0.1, client_key="site_config")
+        out = mqtt_utility.get_broker_history("sensors/#", limit=10, timeout_sec=0.1, client_key="site_config")
         topics = {r["topic"] for r in out}
         assert "sensors/room1/temp" in topics
         assert "other/topic" not in topics
