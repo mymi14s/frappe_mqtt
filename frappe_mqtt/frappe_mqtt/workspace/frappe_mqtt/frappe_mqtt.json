@@ -1,28 +1,26 @@
 {
+ "category": "Modules",
  "charts": [],
- "content": "[{\"id\":\"1tMVeSl2df\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Frappe MQTT</span>\",\"col\":12}},{\"id\":\"sr9mvVzKBi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"MQTT Broker\",\"col\":3}},{\"id\":\"T2AFZMVuUH\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"MQTT Topic\",\"col\":3}}]",
  "creation": "2025-09-07 21:13:12.237842",
- "custom_blocks": [],
+ "developer_mode_only": 0,
+ "disable_user_customization": 0,
  "docstatus": 0,
  "doctype": "Workspace",
+ "extends_another_page": 0,
  "for_user": "",
  "hide_custom": 0,
  "idx": 0,
- "indicator_color": "green",
- "is_hidden": 0,
+ "is_default": 0,
+ "is_standard": 1,
  "label": "Frappe MQTT",
  "links": [],
- "modified": "2025-09-07 21:17:58.530283",
+ "modified": "2025-09-09 19:16:09.247092",
  "modified_by": "Administrator",
  "module": "Frappe MQTT",
  "name": "Frappe MQTT",
- "number_cards": [],
  "owner": "Administrator",
- "parent_page": "",
- "public": 1,
- "quick_lists": [],
- "roles": [],
- "sequence_id": 28.0,
+ "pin_to_bottom": 0,
+ "pin_to_top": 0,
  "shortcuts": [
   {
    "color": "Grey",
@@ -40,6 +38,5 @@
    "stats_filter": "[]",
    "type": "DocType"
   }
- ],
- "title": "Frappe MQTT"
+ ]
 }

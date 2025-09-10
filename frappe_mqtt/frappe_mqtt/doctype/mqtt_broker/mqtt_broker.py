@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe_mqtt.mqtt_utility import reload_all_clients
+from frappe_mqtt.utility import reload_all_clients
 
 class MQTTBroker(Document):
 	
