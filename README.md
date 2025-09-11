@@ -175,12 +175,6 @@ Create **MQTT Broker** documents in Desk to define brokers at runtime:
 
 Brokers defined here are managed the same way as those from `site_config.json`. The app can use **both** sources simultaneously.
 
-> ⚠️ **Hot Reload Limitation**: Automatic reload currently triggers only when an **MQTT Broker** or **MQTT Topic** DocType is *created* or *updated*. Changes to `site_config.json` require a manual `bench restart`. Reloads may take 5–15 seconds to complete after server startup or DocType save. 
-
-To start the broker manually, Click 'Reload brokers' in MQTT Broker list.
-
-![alt text](img/broker.png)
-
 ### MQTT Topic DocType (Auto‑Subscribe)
 
 Create **MQTT Topic** records to declare subscriptions the client should maintain:
@@ -299,7 +293,7 @@ MQTTClient.on_message = on_message
 ### Hot reload behavior
 
 - Changing **MQTT Broker** DocType normally triggers a client reload for that broker.
-- Scheduler watch if client not initialized, else initialize.
+- bench start/serve runs the client
 - bench migrate, works same as scheduler.  
 - Updating **`site_config.json`** requires either calling your reload helper (if provided) or restarting the bench.  
 - Calling `get_client(key)` returns an existing connection or creates/reloads it if needed.
@@ -512,7 +506,7 @@ Restart bench and use the APIs against `client_key="default"`.
 - **Cannot connect**: verify `host`, `port`, and firewall rules; try `mosquitto_sub` first.
 - **TLS errors**: check certificate paths and broker’s CA chain; ensure port 8883.
 - **No messages**: confirm the broker has retained messages (`mosquitto_sub -R`), and your filters match.
-- **Hot reload**: Broker DocType saves should reconnect; for `site_config.json` changes, restart bench && migrate.
+- **Hot reload**: Broker DocType saves should reconnect; for `site_config.json` changes.
 - **Unicode/JSON errors**: ensure publishers send valid UTF‑8 JSON strings.
 - **Database access in threads**: Always use `client.frappe_db`, never raw `frappe` calls in MQTT callbacks. 
 
