@@ -1,5 +1,6 @@
 import os
 import frappe
+from frappe.utils import get_bench_path
 
 def start():
     """Entry point for frappe_mqtt process"""
@@ -17,18 +18,15 @@ def _start_clients():
     from frappe_mqtt.mqtt_utility import reload_all_clients
 
     sites = get_sites()
-    for site in sites:
-        print(site)
-        
+    for site in sites:      
         try:
-            print(site, '\n\n\n')
-            frappe.init(site=site)
-            frappe.connect()
-            print(frappe.get_installed_apps())
-            if "frappe_mqtt" in frappe.get_installed_apps():
-                print("I have mqtt")
-                frappe.logger().info(f"[frappe_mqtt] Starting MQTT clients for site {site}")
-                reload_all_clients()
+            site_path = os.path.join(get_bench_path(), "sites", site)
+            if os.path.exists(os.path.join(site_path, "site_config.json")):
+                frappe.init(site=site)
+                frappe.connect()
+                if "frappe_mqtt" in frappe.get_installed_apps():
+                    frappe.logger().info(f"[frappe_mqtt] Starting MQTT clients for site {site}")
+                    reload_all_clients()
         finally:
             frappe.destroy()
 

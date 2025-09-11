@@ -1,9 +1,6 @@
 import click
 import os
-from frappe.commands import pass_context
-
 from frappe.utils import get_bench_path
-
 from frappe_mqtt.mqtt_utility import reload_all_clients
 
 PROCFILE_PATH = os.path.join(get_bench_path(), "Procfile")
@@ -29,13 +26,13 @@ def ensure_client():
         lines = f.readlines()
 
     if any(line.startswith("frappe_mqtt:") for line in lines):
-        click.secho("frappe_mqtt process already in Procfile ✅", fg="green")
+        click.secho("frappe_mqtt process already in Procfile", fg="green")
         return
 
     with open(PROCFILE_PATH, "a") as f:
         f.write(PROCESS_LINE)
 
-    click.secho("Added frappe_mqtt process to Procfile ✅", fg="green")
+    click.secho("Added frappe_mqtt process to Procfile", fg="green")
 
 
 
