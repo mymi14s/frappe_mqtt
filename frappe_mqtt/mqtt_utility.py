@@ -568,8 +568,8 @@ def _site_config_brokers() -> List[Tuple[str, MQTTConfig]]:
     except Exception:
         return []
 
-    cfg = sc.get("mqtt_config")
-    if not cfg:
+    cfgs = sc.get("mqtt_config")
+    if not cfgs:
         return []
 
     out: List[Tuple[str, MQTTConfig]] = []
@@ -589,14 +589,7 @@ def _site_config_brokers() -> List[Tuple[str, MQTTConfig]]:
             error_topic=d.get("error_topic") or None,
         )
 
-    if isinstance(cfg, dict) and "host" not in cfg:
-        for key, broker_dict in cfg.items():
-            if isinstance(broker_dict, dict) and broker_dict.get("host") and broker_dict.get("port") is not None:
-                out.append((key, build_conf(broker_dict)))
-        return out
-
-    if isinstance(cfg, dict) and cfg.get("host") and cfg.get("port") is not None:
-        out.append(("default", build_conf(cfg)))
-        return out
-
+    for cfg in cfgs:
+        if isinstance(cfg, dict) and "host" in cfg and "name" in cfg and "port" in cfg:
+            out.append((cfg.get("name"), build_conf(cfg)))
     return out
