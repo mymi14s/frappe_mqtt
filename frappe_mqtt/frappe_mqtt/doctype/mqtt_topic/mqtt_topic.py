@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe_mqtt.utility import refresh_subscriptions_from_doctype
+from frappe_mqtt.mqtt_utility import refresh_subscriptions_from_doctype
 
 class MQTTTopic(Document):
 
