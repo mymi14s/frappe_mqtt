@@ -51,11 +51,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y nodejs npm redis-server xvfb libssl-dev wkhtmltopdf mariadb-client mosquitto-clients curl jq
+          sudo apt -y install git build-essential libffi-dev libssl-dev curl pv
           pip install frappe-bench
 
       - name: Init bench and get Frappe
         run: |
-          bench init --skip-redis-config-generation --frappe-branch version-15 frappe-bench
+          bench init --frappe-branch version-15 frappe-bench
           cd frappe-bench
           bench get-app https://github.com/mymi14s/frappe_mqtt
 
