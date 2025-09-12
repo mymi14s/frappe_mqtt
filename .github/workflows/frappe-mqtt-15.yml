@@ -1,0 +1,129 @@
+name: Frappe MQTT
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  frappe-mqtt:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mariadb:10.6
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis-cache:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+      redis-queue:
+        image: redis:alpine
+        ports:
+          - 6380:6379
+      redis-socketio:
+        image: redis:alpine
+        ports:
+          - 6381:6379
+      mosquitto:
+        image: eclipse-mosquitto:latest
+        ports:
+          - 1883:1883
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs npm redis-server xvfb libssl-dev wkhtmltopdf mariadb-client mosquitto-clients curl jq
+          pip install frappe-bench
+
+      - name: Init bench and get Frappe
+        run: |
+          bench init --skip-redis-config-generation --frappe-branch version-14 frappe-bench
+          cd frappe-bench
+          bench get-app --branch version-14 frappe
+          bench get-app https://github.com/mymi14s/frappe_mqtt
+
+      - name: Create site
+        run: |
+          cd frappe-bench
+          bench new-site site.local --mariadb-root-password root --admin-password administrator --no-mariadb-socket
+          bench --site site.local install-app frappe
+          bench --site site.local install-app frappe_mqtt
+          bench use site.local
+
+      - name: Start bench (background)
+        run: |
+          cd frappe-bench
+          nohup bench start &
+          sleep 25
+
+      - name: Insert MQTT Broker
+        run: |
+          cd frappe-bench
+          bench --site site.local execute frappe.get_doc --kwargs '{
+            "doctype": "MQTT Broker",
+            "name": "default",
+            "active": 1,
+            "broker_name": "default",
+            "host": "localhost",
+            "port": 1883,
+            "keepalive": 60,
+            "tls_insecure": 0,
+            "clean_session": 1
+          }' --method insert
+
+      - name: Insert MQTT Topic
+        run: |
+          cd frappe-bench
+          bench --site site.local execute frappe.get_doc --kwargs '{
+            "doctype": "MQTT Topic",
+            "name": "frappe/hello",
+            "enabled": 1,
+            "topic": "frappe/hello",
+            "broker": "default",
+            "qos": "0",
+            "webhook_url": "http://localhost:8000"
+          }' --method insert
+
+      - name: Verify Broker exists
+        run: |
+          cd frappe-bench
+          bench --site site.local execute "frappe.db.get_value" --kwargs '{"doctype":"MQTT Broker","filters":{"name":"default"},"fieldname":"broker_name"}'
+
+      - name: Verify Topic exists
+        run: |
+          cd frappe-bench
+          bench --site site.local execute "frappe.db.get_value" --kwargs '{"doctype":"MQTT Topic","filters":{"name":"frappe/hello"},"fieldname":"topic"}'
+
+      - name: Test MQTT Publish + Subscribe
+        run: |
+          # subscribe in background
+          mosquitto_sub -h localhost -p 1883 -t "frappe/hello" -C 1 -W 10 > received.txt &
+          sleep 2
+          # publish message
+          mosquitto_pub -h localhost -p 1883 -t "frappe/hello" -m '{"name":"mymi1"}'
+          sleep 5
+          echo "Received payload:"
+          cat received.txt
+          grep '"name":"mymi1"' received.txt
+
+      - name: Test Webhook endpoint
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 | grep 200
