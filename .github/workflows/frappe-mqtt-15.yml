@@ -74,43 +74,10 @@ jobs:
           nohup bench start &
           sleep 25
 
-      - name: Insert MQTT Broker
+      - name: Insert MQTT Broker and Topic
         run: |
           cd frappe-bench
-          bench --site site.local execute frappe.get_doc --kwargs '{
-            "doctype": "MQTT Broker",
-            "name": "default",
-            "active": 1,
-            "broker_name": "default",
-            "host": "localhost",
-            "port": 1883,
-            "keepalive": 60,
-            "tls_insecure": 0,
-            "clean_session": 1
-          }' --method insert
-
-      - name: Insert MQTT Topic
-        run: |
-          cd frappe-bench
-          bench --site site.local execute frappe.get_doc --kwargs '{
-            "doctype": "MQTT Topic",
-            "name": "frappe/hello",
-            "enabled": 1,
-            "topic": "frappe/hello",
-            "broker": "default",
-            "qos": "0",
-            "webhook_url": "http://localhost:8000"
-          }' --method insert
-
-      - name: Verify Broker exists
-        run: |
-          cd frappe-bench
-          bench --site site.local execute "frappe.db.get_value" --kwargs '{"doctype":"MQTT Broker","filters":{"name":"default"},"fieldname":"broker_name"}'
-
-      - name: Verify Topic exists
-        run: |
-          cd frappe-bench
-          bench --site site.local execute "frappe.db.get_value" --kwargs '{"doctype":"MQTT Topic","filters":{"name":"frappe/hello"},"fieldname":"topic"}'
+          bench --site site.local execute frappe_mqtt.scripts.ci.create_data
 
       - name: Test MQTT Publish + Subscribe
         run: |
