@@ -65,7 +65,6 @@ jobs:
           bench new-site site.local --mariadb-root-password root --admin-password administrator --no-mariadb-socket
           bench use site.local
           bench --site site.local install-app frappe_mqtt
-          bench migrate
           
 
       - name: Start bench (background)
@@ -73,6 +72,7 @@ jobs:
           cd frappe-bench
           nohup bench start &
           sleep 25
+          bench migrate
 
       - name: Insert MQTT Broker and Topic
         run: |
