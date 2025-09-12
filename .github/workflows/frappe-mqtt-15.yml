@@ -63,9 +63,10 @@ jobs:
         run: |
           cd frappe-bench
           bench new-site site.local --mariadb-root-password root --admin-password administrator --no-mariadb-socket
-          bench --site site.local install-app frappe
-          bench --site site.local install-app frappe_mqtt
           bench use site.local
+          bench --site site.local install-app frappe_mqtt
+          bench migrate
+          
 
       - name: Start bench (background)
         run: |
