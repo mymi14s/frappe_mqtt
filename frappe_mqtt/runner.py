@@ -1,21 +1,23 @@
-import os
-import frappe
+import os, frappe
+from werkzeug._reloader import run_with_reloader
 from frappe.utils import get_bench_path
+from .mqtt_utility import run_forever
+from frappe.utils import get_sites
+from frappe_mqtt.mqtt_utility import reload_all_clients
+
 
 def start():
     """Entry point for frappe_mqtt process"""
     dev_mode = frappe.conf.get("developer_mode") or os.environ.get("DEV_SERVER", "0") == "1"
 
     if dev_mode:
-        _start_with_reloader()
+        start_with_reloader()
     else:
-        _start_clients()
+        run_forever()
 
 
-def _start_clients():
+def start_clients():
     """Run MQTT clients for installed sites"""
-    from frappe.utils import get_sites
-    from frappe_mqtt.mqtt_utility import reload_all_clients
 
     sites = get_sites()
     for site in sites:      
@@ -25,14 +27,17 @@ def _start_clients():
                 frappe.init(site=site)
                 frappe.connect()
                 if "frappe_mqtt" in frappe.get_installed_apps():
-                    frappe.logger().info(f"[frappe_mqtt] Starting MQTT clients for site {site}")
+                    log_text = f"[frappe_mqtt] Starting MQTT clients for site {site}"
+                    print(log_text)
+                    frappe.logger().info(log_text)
                     reload_all_clients()
         finally:
             frappe.destroy()
 
 
-def _start_with_reloader():
+def start_with_reloader():
     """Wrap client in Frappe hot-reload loop during development"""
-    from werkzeug._reloader import run_with_reloader
-    frappe.logger().info("[frappe_mqtt] Development mode: running with hot reload")
-    run_with_reloader(_start_clients)
+    log_text = "[frappe_mqtt] Development mode: running with hot reload"
+    print(log_text)
+    frappe.logger().info(log_text)
+    run_with_reloader(start_clients)

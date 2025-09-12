@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib, json, re, ssl, threading, uuid, time, frappe
+import hashlib, json, re, ssl, threading, uuid, time, frappe,signal
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from threading import Event
@@ -593,3 +593,69 @@ def _site_config_brokers() -> List[Tuple[str, MQTTConfig]]:
         if isinstance(cfg, dict) and "host" in cfg and "name" in cfg and "port" in cfg:
             out.append((cfg.get("name"), build_conf(cfg)))
     return out
+
+
+_shutdown = threading.Event()
+
+def _graceful_shutdown(signum, frame):
+    try:
+        log_text = f"[frappe_mqtt] Received signal {signum}; shutting down..."
+        frappe.logger().info(log_text)
+    except Exception:
+        pass
+    _shutdown.set()
+
+def run_forever(healthcheck_interval_sec: int = 60):
+    """
+    Production entrypoint: ensure clients exist, then block the main thread.
+    """
+    reload_all_clients()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, _graceful_shutdown)
+
+    def _reload(_s, _f):
+        try:
+            log_text = "[frappe_mqtt] SIGHUP received; reloading clients/subscriptions..."
+            print(log_text)
+            frappe.logger().info(log_text)
+        except Exception:
+            pass
+        try:
+            reload_all_clients()
+        except Exception as exc:
+            frappe.log_error(f"Reload failed: {exc}", "Frappe MQTT")
+    try:
+        signal.signal(signal.SIGHUP, _reload)
+    except Exception:
+        pass
+
+    try:
+        log_text = "[frappe_mqtt] Clients started; entering wait loop."
+        print(log_text)
+        frappe.logger().info(log_text)
+    except Exception:
+        pass
+
+    while not _shutdown.is_set():
+        print("health check.........")
+        _shutdown.wait(timeout=max(5, int(healthcheck_interval_sec)))
+        if not _shutdown.is_set():
+            try:
+                ensure_clients_ready()
+            except Exception as exc:
+                log_text = f"ensure_clients_ready failed: {exc}", "Frappe MQTT"
+                print(log_text)
+                frappe.log_error(log_text)
+
+    try:
+        for c in list(get_clients().values()):
+            try:
+                c.disconnect()
+            except Exception:
+                pass
+        log_text = "[frappe_mqtt] Stopped cleanly."
+        print(log_text)
+        frappe.logger().info(log_text)
+    except Exception:
+        pass
