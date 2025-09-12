@@ -1,6 +1,6 @@
 # Frappe MQTT
 
-> **Frappe MQTT**  
+> **Frappe MQTT - vV0.0.3**  
 > Easily connect Frappe/ERPNext apps with IoT devices and real-time systems using MQTT messaging. The app supports single or multiple brokers, auto-subscribes from DocTypes, publishes JSON messages, hot-reloads credentials, and operates through simple server APIs. Build event-driven workflows and IoT-ready applications seamlessly within Frappe.
 
 ---
