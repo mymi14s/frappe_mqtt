@@ -4,7 +4,7 @@ from frappe.utils import get_bench_path
 from frappe_mqtt.mqtt_utility import reload_all_clients
 
 PROCFILE_PATH = os.path.join(get_bench_path(), "Procfile")
-PROCESS_LINE = "frappe_mqtt: bench execute frappe_mqtt.runner.start\n"
+PROCESS_LINE = "frappe_mqtt: bench --site all execute frappe_mqtt.runner.start\n"
 
 
 @click.command("frappe-mqtt", help="MQTT utilities")
