@@ -71,13 +71,12 @@ jobs:
       - name: Start bench (background)
         run: |
           cd frappe-bench
-          nohup bench start &
-          sleep 25
-          bench migrate
+          sudo bench setup production $USER
 
       - name: Insert MQTT Broker and Topic
         run: |
           cd frappe-bench
+          bench migrate
           bench --site site.local execute frappe_mqtt.scripts.ci.create_data
 
       - name: Test MQTT Publish + Subscribe
