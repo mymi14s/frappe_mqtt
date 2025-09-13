@@ -2,7 +2,7 @@ import os
 from frappe.utils import get_bench_path
 
 PROCFILE_PATH = os.path.join(get_bench_path(), "Procfile")
-PROCESS_LINE = "frappe_mqtt: bench execute frappe_mqtt.runner.start\n"
+PROCESS_LINE = "frappe_mqtt: bench --site all execute frappe_mqtt.runner.start\n"
 
 def after_install():
     """Add frappe_mqtt process to Procfile"""
