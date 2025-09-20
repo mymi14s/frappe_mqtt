@@ -50,7 +50,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y nodejs npm redis-server xvfb libssl-dev wkhtmltopdf mariadb-client mosquitto-clients curl jq
+          sudo apt-add-repository ppa:mosquitto-dev/mosquitto-ppa
+          sudo apt-get install -y nodejs npm redis-server xvfb libssl-dev wkhtmltopdf mariadb-client mosquitto-clients mosquitto curl jq
           sudo apt -y install git build-essential libffi-dev libssl-dev curl pv
           pip install frappe-bench
 
