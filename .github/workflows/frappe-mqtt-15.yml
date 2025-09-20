@@ -33,12 +33,6 @@ jobs:
         image: redis:alpine
         ports:
           - 6381:6379
-      mosquitto:
-        image: eclipse-mosquitto:latest
-        ports:
-          - 1883:1883
-        volumes:
-          - ./ci/mosquitto.conf:/mosquitto/config/mosquitto.conf
 
     steps:
       - name: Checkout repo
@@ -52,7 +46,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y nodejs npm redis-server xvfb libssl-dev wkhtmltopdf mariadb-client mosquitto-clients curl jq
+          sudo apt-add-repository ppa:mosquitto-dev/mosquitto-ppa
+          sudo apt-get install -y nodejs npm redis-server xvfb libssl-dev wkhtmltopdf mariadb-client mosquitto-clients mosquitto curl jq
           sudo apt -y install git build-essential libffi-dev libssl-dev curl pv
           pip install frappe-bench
 
