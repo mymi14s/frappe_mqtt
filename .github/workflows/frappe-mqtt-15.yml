@@ -63,12 +63,8 @@ jobs:
           bench new-site site.local --mariadb-root-password root --admin-password administrator --no-mariadb-socket
           bench use site.local
           bench --site site.local install-app frappe_mqtt
-          
-
-      - name: Start bench (background)
-        run: |
-          cd frappe-bench
           sudo bench setup production $USER
+          
 
       - name: Insert MQTT Broker and Topic
         run: |
